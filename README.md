@@ -2,8 +2,11 @@
 
 Dashboard analitik penjualan berbasis Python untuk usaha kecil: unggah data transaksi, lihat tren dan produk terlaris, perkirakan omzet dan stok yang akan habis, lalu terima ringkasan mingguan otomatis lewat Telegram atau email.
 
-> Tambahkan tangkapan layar / GIF demo di sini: `docs/demo.gif`
-> Tautan demo langsung: (isi setelah deploy ke Streamlit Community Cloud)
+![Tes](https://github.com/cocoleghari/sales-dashboard/actions/workflows/tests.yml/badge.svg)
+
+**Demo langsung:** https://dashboard-penjualan-anakstack.streamlit.app
+
+<!-- ![Demo](docs/demo.gif) -->
 
 ## Fitur
 
@@ -28,13 +31,13 @@ Tanpa file unggahan, aplikasi memakai data contoh yang dibuat otomatis.
 
 ## Format data
 
-| kolom    | wajib | keterangan                                            |
-|----------|-------|-------------------------------------------------------|
-| tanggal  | ya    | disarankan format `YYYY-MM-DD`                        |
-| produk   | ya    | nama produk                                           |
-| kategori | ya    | kategori produk                                       |
-| qty      | ya    | jumlah unit, harus > 0                                |
-| harga    | ya    | harga satuan                                          |
+| kolom    | wajib | keterangan                                             |
+| -------- | ----- | ------------------------------------------------------ |
+| tanggal  | ya    | disarankan format `YYYY-MM-DD`                         |
+| produk   | ya    | nama produk                                            |
+| kategori | ya    | kategori produk                                        |
+| qty      | ya    | jumlah unit, harus > 0                                 |
+| harga    | ya    | harga satuan                                           |
 | stok     | tidak | sisa stok setelah transaksi; aktifkan fitur stok habis |
 
 Nama kolom tidak peka huruf besar/kecil.
@@ -47,7 +50,7 @@ python scripts/send_weekly_report.py data/sales_sample.csv --dry-run   # cetak s
 python scripts/send_weekly_report.py data/sales_sample.csv             # kirim
 ```
 
-Workflow `.github/workflows/weekly-report.yml` menjalankannya setiap Senin 08:00 WIB. Simpan `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` di *Settings → Secrets and variables → Actions*. Untuk data sungguhan, arahkan workflow ke sumber data Anda (lihat "Pengembangan lanjut").
+Workflow `.github/workflows/weekly-report.yml` menjalankannya setiap Senin 08:00 WIB. Simpan `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` di _Settings → Secrets and variables → Actions_. Untuk data sungguhan, arahkan workflow ke sumber data Anda (lihat "Pengembangan lanjut").
 
 ## Struktur proyek
 
