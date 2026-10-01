@@ -6,7 +6,7 @@ Dashboard analitik penjualan berbasis Python untuk usaha kecil: unggah data tran
 
 **Demo langsung:** https://dashboard-penjualan-anakstack.streamlit.app
 
-<!-- ![Demo](docs/demo.gif) -->
+![Demo](docs/demo.gif)
 
 ## Fitur
 
@@ -14,6 +14,7 @@ Dashboard analitik penjualan berbasis Python untuk usaha kecil: unggah data tran
 - KPI (omzet, transaksi, unit, rata-rata per transaksi) beserta perubahan terhadap periode sebelumnya yang panjangnya sama.
 - Tren omzet harian dengan rata-rata bergerak 7 hari, pola per hari dalam seminggu, produk terlaris, dan porsi kategori.
 - Prediksi omzet (tren linear × pola hari-dalam-seminggu) dengan rentang ketidakpastian ~80%.
+- Backtesting prediksi: model diuji mundur di beberapa periode lalu dibandingkan dengan dua baseline sederhana (lihat bagian Akurasi prediksi).
 - Perkiraan stok habis per produk (status Kritis / Waspada / Aman) dari laju penjualan 14 hari terakhir.
 - Ringkasan mingguan berbentuk teks, dikirim otomatis lewat skrip atau GitHub Actions.
 
@@ -31,16 +32,38 @@ Tanpa file unggahan, aplikasi memakai data contoh yang dibuat otomatis.
 
 ## Format data
 
-| kolom    | wajib | keterangan                                             |
-| -------- | ----- | ------------------------------------------------------ |
-| tanggal  | ya    | disarankan format `YYYY-MM-DD`                         |
-| produk   | ya    | nama produk                                            |
-| kategori | ya    | kategori produk                                        |
-| qty      | ya    | jumlah unit, harus > 0                                 |
-| harga    | ya    | harga satuan                                           |
+| kolom    | wajib | keterangan                                            |
+|----------|-------|-------------------------------------------------------|
+| tanggal  | ya    | disarankan format `YYYY-MM-DD`                        |
+| produk   | ya    | nama produk                                           |
+| kategori | ya    | kategori produk                                       |
+| qty      | ya    | jumlah unit, harus > 0                                |
+| harga    | ya    | harga satuan                                          |
 | stok     | tidak | sisa stok setelah transaksi; aktifkan fitur stok habis |
 
 Nama kolom tidak peka huruf besar/kecil.
+
+## Akurasi prediksi
+
+Prediksi diuji dengan *rolling-origin backtesting*: mundur ke beberapa titik di masa lalu, anggap data sesudahnya belum diketahui, buat prediksi, lalu bandingkan dengan omzet sebenarnya. Model dibandingkan dengan dua baseline: rata-rata 7 hari terakhir dan musiman naif (sama dengan hari yang sama pekan lalu). Ukuran galatnya WAPE, yaitu total selisih mutlak dibagi total omzet sebenarnya.
+
+Hasil pada `data/sales_sample.csv` (12 periode uji, menebak 7 hari ke depan):
+
+| Metode                     | WAPE  | MAE (Rp) |
+|----------------------------|-------|----------|
+| Model (tren + musiman)     | 8,9%  | 162.990  |
+| Musiman naif (minggu lalu) | 12,8% | 235.179  |
+| Rata-rata 7 hari           | 15,7% | 287.685  |
+
+Model lebih akurat 43% dari rata-rata 7 hari (menang di semua periode uji) dan 31% dari musiman naif (menang di 11 dari 12 periode).
+
+**Catatan jujur:** data contoh dibuat sintetis dengan tren dan pola mingguan yang bersih, persis jenis pola yang ditangkap model ini, sehingga hasilnya menunjukkan bahwa metode pengujiannya bekerja, bukan jaminan akurasi di toko sungguhan. Jalankan pada data Anda sendiri untuk angka yang realistis:
+
+```bash
+python scripts/run_backtest.py data/penjualan_saya.csv --horizon 7
+```
+
+Hasil yang sama juga tersedia di tab **Akurasi model** pada aplikasi, dan kesimpulannya otomatis melaporkan bila model ternyata kalah dari baseline.
 
 ## Ringkasan mingguan otomatis
 
@@ -50,7 +73,7 @@ python scripts/send_weekly_report.py data/sales_sample.csv --dry-run   # cetak s
 python scripts/send_weekly_report.py data/sales_sample.csv             # kirim
 ```
 
-Workflow `.github/workflows/weekly-report.yml` menjalankannya setiap Senin 08:00 WIB. Simpan `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` di _Settings → Secrets and variables → Actions_. Untuk data sungguhan, arahkan workflow ke sumber data Anda (lihat "Pengembangan lanjut").
+Workflow `.github/workflows/weekly-report.yml` menjalankannya setiap Senin 08:00 WIB. Simpan `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID` di *Settings → Secrets and variables → Actions*. Untuk data sungguhan, arahkan workflow ke sumber data Anda (lihat "Pengembangan lanjut").
 
 ## Struktur proyek
 
@@ -59,9 +82,11 @@ app.py                     antarmuka Streamlit (tanpa logika bisnis)
 dashboard/data.py          pemuatan, validasi, pembersihan, generator data contoh
 dashboard/metrics.py       KPI, perbandingan periode, produk terlaris, tren
 dashboard/forecast.py      prediksi omzet dan perkiraan stok habis
+dashboard/backtest.py      pengujian akurasi prediksi terhadap baseline
+dashboard/ui.py            token desain, CSS, dan komponen HTML (gaya flat)
 dashboard/report.py        ringkasan teks, pengiriman Telegram/email
-scripts/                   skrip baris perintah (data contoh, laporan mingguan)
-tests/                     pytest untuk data, metrik, prediksi, laporan
+scripts/                   skrip baris perintah (data contoh, laporan mingguan, backtest)
+tests/                     pytest untuk data, metrik, prediksi, backtest, laporan, tampilan
 ```
 
 ## Keputusan teknis
@@ -69,12 +94,14 @@ tests/                     pytest untuk data, metrik, prediksi, laporan
 - **Logika dipisah dari UI.** Seluruh perhitungan ada di paket `dashboard/` dan tidak mengimpor Streamlit, sehingga bisa diuji dengan pytest dan dipakai ulang oleh skrip laporan.
 - **Pembanding periode selalu sama panjang.** Memilih 30 hari berarti dibandingkan dengan 30 hari tepat sebelumnya; bila periode sebelumnya kosong, perubahan ditampilkan sebagai "n/a", bukan angka menyesatkan.
 - **Hari tanpa transaksi dihitung nol.** Rata-rata bergerak dan prediksi jadi tidak bias ke hari-hari ramai.
-- **Prediksi sengaja sederhana.** Tren linear dengan faktor musiman mingguan mudah dijelaskan dan cukup untuk data usaha kecil. Model yang lebih rumit (Prophet, ARIMA) hanya layak bila terbukti lebih akurat pada data uji.
+- **Prediksi sengaja sederhana, dan diuji.** Tren linear dengan faktor musiman mingguan mudah dijelaskan dan cukup untuk data usaha kecil. Model yang lebih rumit (Prophet, ARIMA) hanya layak bila terbukti mengalahkan model ini dan kedua baseline pada backtest.
+- **Backtest tanpa kebocoran data.** Setiap periode uji hanya melihat data sebelum tanggal uji, dan jendela uji tidak saling tumpang tindih, sehingga angka galat tidak terlalu optimistis.
+- **Tampilan datar dengan satu aksen.** Batas tipis menggantikan bayangan, warna hijau, kuning, dan merah hanya dipakai untuk makna (naik atau turun, status stok), dan semua gaya terpusat di `dashboard/ui.py`.
 - **Rahasia lewat environment variable.** Token dan kata sandi tidak pernah masuk repositori (`.env` ada di `.gitignore`).
 
 ## Pengembangan lanjut
 
-- Bandingkan akurasi prediksi terhadap baseline (rata-rata 7 hari) dengan backtesting, dan catat hasilnya di sini.
+- Uji model lain (misalnya Holt-Winters) pada backtest yang sama dan catat apakah ada yang lebih baik.
 - Sambungkan sumber data langsung (Google Sheets, database, ekspor marketplace) menggantikan file statis.
 - Simpan riwayat laporan dan tambahkan ambang peringatan (misalnya omzet turun lebih dari 20%).
 - Tambahkan autentikasi bila dipakai lebih dari satu pengguna.
